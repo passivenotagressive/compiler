@@ -12,7 +12,7 @@ using namespace std;
 map<string, int> codes;
 map<string, string> code_type;
 map<int, string> codes_nums;
-map<string, int> labels;
+map<string, int> labels; //таблица меток
 
 int regs[16];
 int mem[1024 * 1024];
@@ -67,7 +67,7 @@ vector<unsigned int> dbl_to_int(double a) {
     res[0] = x;
     res[1] = y;
     return res;
-}
+} //перевод из двочиной записи числа в два регистра int'ов
 
 double int_to_dbl(vector<unsigned int> a) {
     double res;
@@ -97,7 +97,7 @@ double int_to_dbl(vector<unsigned int> a) {
     }
     return res;
 
-}
+} //перевод из двух регистров в число двойной точности
 
 vector<string> string_to_vector(const string *line) {
     stringstream x;
@@ -108,7 +108,7 @@ vector<string> string_to_vector(const string *line) {
         res.push_back(word);
     }
     return res;
-}
+} //разбиение строки на массив слов
 
 int cmp(int a, int b) {
     if (a < b) {
@@ -118,7 +118,7 @@ int cmp(int a, int b) {
     } else {
         return 1;
     }
-}
+} //сравнение целых чисел
 
 int cmpd(double a, double b) {
     if (a < b) {
@@ -128,7 +128,7 @@ int cmpd(double a, double b) {
     } else {
         return 1;
     }
-}
+} //сравнение действительных чисел
 
 void codes_nums_fill() {
     codes_nums[0] = "halt";
@@ -183,7 +183,7 @@ void codes_nums_fill() {
     codes_nums[69] = "load2";
     codes_nums[70] = "loadr2";
     codes_nums[71] = "storer2";
-}
+} //заполнение словаря номер-команда
 
 void codes_fill() {
     codes["halt"] = 0;
@@ -238,7 +238,7 @@ void codes_fill() {
     codes["storer"] = 69;
     codes["loadr2"] = 70;
     codes["storer2"] = 71;
-}
+} //заполнение словаря команда-номер
 
 void type_fill() {
     code_type["halt"] = "RI";
@@ -293,7 +293,9 @@ void type_fill() {
     code_type["storer"] = "RR";
     code_type["loadr2"] = "RR";
     code_type["storer2"] = "RR";
-}
+} //заполнение словаря команда-тип
+
+//функции кодирования команд по коду команды и соответствующим аргументам, в зависимости от типа команды
 
 int RM(const string *code, const string *r, const int *adress) {
     int x = codes[*code] << 24;
@@ -347,6 +349,7 @@ int J(const string *code, const int *operand) {
 }
 
 int main() {
+    //вызов функций заполнения словарей
     codes_nums_fill();
     codes_fill();
     type_fill();
@@ -356,8 +359,8 @@ int main() {
     vector<string> w;
     regs[14] = 1024 * 1024 - 1;
     int N;
-    set<int> words;
-    set<int> doubles;
+    set<int> words; //словарь меток целых чисел
+    set<int> doubles; //словарь меток действительных чисел
     int pc = 0; //первый проход
     in.open("input.fasm");
     out.open("output.txt");
@@ -366,14 +369,15 @@ int main() {
         if (a[a.size() - 1] == ':') {
             string b = a.substr(0, a.size() - 1);
             labels[b] = pc;
-        }
+        } //считывание меток
         if (a == "word") {
             int x;
             in >> x;
             mem[pc] = x;
             words.insert(pc);
             ++pc;
-        } else if (a == "double") {
+        }
+        else if (a == "double") {
             double x;
             in >> x;
             vector<unsigned int> r = dbl_to_int(x);
@@ -381,18 +385,19 @@ int main() {
             mem[pc + 1] = r[1];
             doubles.insert(pc);
             pc += 2;
-        } else if (!code_type[a].empty()) {
+        } //обработка случаев, когда метка резервирует в памяти место под число
+        else if (!code_type[a].empty()) {
             ++pc;
         }
         in >> a;
     }
     in >> a;
     in.close();
-    regs[15] = labels[a];
+    regs[15] = labels[a]; //начинаем обход функций с той, на которую идет ссылка после end
     pc = 0; //второй проход
     in.open("input.fasm");
     getline(in, a);
-    w = string_to_vector(&a);
+    w = string_to_vector(&a); //массив слов в строке
     while (w[0] != "end") {
         int i = 0;
         int s = w.size();
@@ -406,9 +411,9 @@ int main() {
         if (i < s && w[i] == "double") {
             i += 2;
             ++pc;
-        }
+        } //в случае меток пропускаем нужное количество слов
         if (i < s) {
-            string type = code_type[w[i]];
+            string type = code_type[w[i]]; //определяем тип команды
             if (type == "RM") {
                 string r = w[i + 1];
                 string link = w[i + 2];
@@ -416,9 +421,9 @@ int main() {
                 if ('0' <= link[0] && '9' >= link[0]) {
                     adress = stoi(link);
                 } else {
-                    adress = labels[link];
+                    adress = labels[link]; //случай, когда число дается в виде метки
                 }
-                mem[pc] = RM(&w[i], &r, &adress);
+                mem[pc] = RM(&w[i], &r, &adress); //заполняем память соотвствующим кодом
             } else if (type == "RR") {
                 string r1 = w[i + 1];
                 string r2 = w[i + 2];
