@@ -230,31 +230,22 @@ int main(){
     type_fill();
     FILE *fp = fopen("input.bin", "rb");
 
-    int code_size; //считывание размера кода программы
-    fseek(fp, 16, SEEK_SET);
-    fread(&code_size, sizeof(int), 1, fp);
-
-    int const_size; //считывание размера сегмента констант
-    fseek(fp, 20, SEEK_SET);
-    fread(&const_size, sizeof(int), 1, fp);
-
-    int data_size; //считывание размера сегмента данных
-    fseek(fp, 24, SEEK_SET);
-    fread(&data_size, sizeof(int), 1, fp);
-
-    int size = data_size + code_size + const_size;
-
     int start; //считывание адреса начала исполнения программы
     fseek(fp, 28, SEEK_SET);
-    fread(&start, sizeof(int), 2, fp);
+    fread(&start, sizeof(int), 1, fp);
     regs[15] = start;
 
+    fseek(fp , 0 , SEEK_END);
+    long size = ftell(fp);
+
+    regs[14] = 1024 * 1024 - 1;
     fseek(fp, 512, SEEK_SET); //ставим указатель на начало раздела кода
-
-    int pointer = 512;
-
-    while (pointer < size - 512) {
-
+    int pointer = 0;
+    int word;
+    while (pointer * 4 + 512 < size) {
+        fread(&word, sizeof(int), 1, fp);
+        mem[pointer] = word;
+        pointer++;
     }
     while (true) { //исполнение
         int comand;
@@ -354,7 +345,7 @@ int main(){
                     cout << x;
                 } else if (arg == 104) {
                     unsigned char x;
-                    in >> x;
+                    cin >> x;
                     regs[r] = (int) x;
                 } else if (arg == 105) {
                     char x = (char) regs[r];
@@ -540,4 +531,5 @@ int main(){
         }
     }
     fclose(fp);
+    return 0;
 }
