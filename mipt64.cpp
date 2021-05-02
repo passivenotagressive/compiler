@@ -15,6 +15,76 @@ int flag;
 
 map<string, int> labels; //таблица меток
 
+map<string, string> types;
+
+set<string> comands = {"halt", "svc", "add", "sub", "mul", "and", "or", "xor", "nand", "addd",
+                       "subd", "muld", "divd", "itod", "dtoi", "bl", "cmp", "cmpd", "cne",
+                       "ceq", "cle", "clt", "cge", "cgt", "ld", "st"};
+
+enum code {
+    HALT = 0,
+    SVC = 1,
+    ADD = 2,
+    SUB = 3,
+    MUL = 4,
+    DIV = 5,
+    MOD = 6,
+    AND = 7,
+    OR = 8,
+    XOR = 9,
+    NAND = 10,
+    ADDD = 12,
+    SUBD = 13,
+    MULD = 14,
+    DIVD = 15,
+    ITOD = 16,
+    DTOI = 17,
+    BL = 20,
+    CMP = 22,
+    CMPD = 23,
+    CNE = 25,
+    CEQ = 26,
+    CLE = 27,
+    CLT = 28,
+    CGE = 29,
+    CGT = 30,
+    LD = 31,
+    ST = 32,
+};
+
+void type_fill() {
+    types["halt"] = "RR";
+    types["svc"] = "RR";
+    types["add"] = "RR";
+    types["sub"] = "RR";
+    types["mul"] = "RR";
+    types["div"] = "RR";
+    types["mod"] = "RR";
+    types["and"] = "RR";
+    types["or"] = "RR";
+    types["xor"] = "RR";
+    types["nand"] = "RR";
+    types["shl"] = "RR";
+    types["shr"] = "RR";
+    types["addd"] = "RR";
+    types["subd"] = "RR";
+    types["muld"] = "RR";
+    types["divd"] = "RR";
+    types["itod"] = "RR";
+    types["dtoi"] = "RR";
+    types["bl"] = "B";
+    types["cmp"] = "RR";
+    types["cmpd"] = "RR";
+    types["cne"] = "RR";
+    types["ceq"] = "RR";
+    types["cle"] = "RR";
+    types["clt"] = "RR";
+    types["cge"] = "RR";
+    types["cgt"] = "RR";
+    types["ld"] = "RM";
+    types["st"] = "RM";
+}
+
 vector<char> int_for_mem(int n) {
     vector<char> r(4);
     int d = 1 << 8;
@@ -36,8 +106,9 @@ vector<char> long_for_mem(long n) {
 }
 
 int main(){
-    set<int> words; //словарь меток одинарного слова
-    set<int> dwords; //словарь меток двойного слова
+    type_fill();
+    set<int> words; //множество меток одинарного слова
+    set<int> dwords; //множество меток двойного слова
     set<pair<int, int>> bytes; //словарь байтов
     int pc = 0;
     string a;
@@ -79,8 +150,24 @@ int main(){
             p.second = n;
             bytes.insert(p);
             pc += n;
+        } else if (comands.count(a) > 0) {
+            ++pc;
         }
         cin >> a;
     }
+    cin >> a;
+
+    pc = 0; //второй проход
+    cin >> a;
+    while (a != "end") {
+        if (a == "word") {
+
+        }
+    }
+
+    regs[31] = labels[a]; //устанавливаем метку начала программы
+    regs[29] = 1024 * 2048 - 1; //устанавливаем стек на начало
+
+
 }
 
