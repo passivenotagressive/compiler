@@ -1,0 +1,772 @@
+#include <iostream>
+#include <string>
+#include <map>
+#include <fstream>
+#include <sstream>
+#include <vector>
+#include <cmath>
+#include <set>
+#include "string.h"
+
+using namespace std;
+
+char mem[1024 * 1024 * 2]; //модель памяти
+unsigned long long regs[32]; //модель регистров
+int flag;
+
+map<string, int> codes; //таблица соотвествия команда-код
+
+map<int, string> types; //таблица соответствия код команды-тип
+
+map<string, int> labels; //таблица меток
+
+map<int, string> commands;
+
+set<string> comands = {"halt", "svc", "add", "sub", "mul", "div", "mod", "and", "or", "xor", "nand", "shl", "shr", "addd",
+                       "subd", "muld", "divd", "itod", "dtoi", "bl", "cmp", "cmpd", "cne",
+                       "ceq", "cle", "clt", "cge", "cgt", "ld", "st"}; //список всех команд
+
+void commands_init() {
+    commands[0] = "halt";
+    commands[1] = "svc";
+    commands[2] = "add";
+    commands[3] = "sub";
+    commands[4] = "mul";
+    commands[5] = "div";
+    commands[6] = "mod";
+    commands[7] = "and";
+    commands[8] = "or";
+    commands[9] = "xor";
+    commands[10] = "nand";
+    commands[11] = "shl";
+    commands[12] = "shr";
+    commands[13] = "addd";
+    commands[14] = "subd";
+    commands[15] = "muld";
+    commands[16] = "divd";
+    commands[17] = "itod";
+    commands[18] = "dtoi";
+    commands[19] = "bl";
+    commands[20] = "cmp";
+    commands[21] = "cmpd";
+    commands[22] = "cne";
+    commands[23] = "ceq";
+    commands[24] = "cle";
+    commands[25] = "clt";
+    commands[26] = "cge";
+    commands[27] = "cgt";
+    commands[28] = "ld";
+    commands[29] = "st";
+}
+
+
+void codes_fill() {
+    codes["halt"] = 0;
+    codes["svc"] = 1;
+    codes["add"] = 2;
+    codes["sub"] = 3;
+    codes["mul"] = 4;
+    codes["div"] = 5;
+    codes["mod"] = 6;
+    codes["and"] = 7;
+    codes["or"] = 8;
+    codes["xor"] = 9;
+    codes["nand"] = 10;
+    codes["shl"] = 11;
+    codes["shr"] = 12;
+    codes["addd"] = 13;
+    codes["subd"] = 14;
+    codes["muld"] = 15;
+    codes["divd"] = 16;
+    codes["itod"] = 17;
+    codes["dtoi"] = 18;
+    codes["bl"] = 19;
+    codes["cmp"] = 20;
+    codes["cmpd"] = 21;
+    codes["cne"] = 22;
+    codes["ceq"] = 23;
+    codes["cle"] = 24;
+    codes["clt"] = 25;
+    codes["cge"] = 26;
+    codes["cgt"] = 27;
+    codes["ld"] = 28;
+    codes["st"] = 29;
+} //запоолнение таблицы команда-код
+
+void type_fill() {
+    types[0] = "RR";
+    types[1] = "RR";
+    types[2] = "RR";
+    types[3] = "RR";
+    types[4] = "RR";
+    types[5] = "RR";
+    types[6] = "RR";
+    types[7] = "RR";
+    types[8] = "RR";
+    types[9] = "RR";
+    types[10] = "RR";
+    types[11] = "RR";
+    types[12] = "RR";
+    types[13] = "RR";
+    types[14] = "RR";
+    types[15] = "RR";
+    types[16] = "RR";
+    types[17] = "RR";
+    types[18] = "RR";
+    types[19] = "B";
+    types[20] = "RR";
+    types[21] = "RR";
+    types[22] = "C";
+    types[23] = "C";
+    types[24] = "C";
+    types[25] = "C";
+    types[26] = "C";
+    types[27] = "C";
+    types[28] = "RM";
+    types[29] = "RM";
+} //заполнение таблицы код-тип
+
+enum code_e {
+    HALT = 0,
+    SVC = 1,
+    ADD = 2,
+    SUB = 3,
+    MUL = 4,
+    DIV = 5,
+    MOD = 6,
+    AND = 7,
+    OR = 8,
+    XOR = 9,
+    NAND = 10,
+    SHL = 11,
+    SHR = 12,
+    ADDD = 13,
+    SUBD = 14,
+    MULD = 15,
+    DIVD = 16,
+    ITOD = 17,
+    DTOI = 18,
+    BL = 19,
+    CMP = 20,
+    CMPD = 21,
+    CNE = 22,
+    CEQ = 23,
+    CLE = 24,
+    CLT = 25,
+    CGE = 26,
+    CGT = 27,
+    LD = 28,
+    ST = 29,
+};
+
+vector<char> int_for_mem(int n) {
+    vector<char> r(4);
+    int d = 1 << 8;
+    for (int i = 0; i < 3; ++i) {
+        r[i] = char(n % d);
+        n /= d;
+    }
+    return r;
+} //преобразование int в вид для хранения
+
+vector<char> long_for_mem(long n) {
+    vector<char> r(8);
+    int d = 1 << 8;
+    for (int i = 0; i < 7; ++i) {
+        r[i] = char(n % d);
+        n /= d;
+    }
+    return r;
+} //преобразование long в вид для хранения
+
+int num_of_reg(string r) {
+    int n = 0;
+    if (r == "rz") n = 27;
+    else if (r == "fp") n = 28;
+    else if (r == "sp") n = 29;
+    else if (r == "lr") n = 30;
+    else if (r == "pc") n = 31;
+    else if (r[0] == 'r' && r.size() == 2) {
+        n = (int) r[1] - (int) '0';
+    } else if (r[0] == 'r' && r.size() == 3) {
+        n = ((int) r[1] - (int) '0') * 10 + ((int) r[2] - (int) '0');
+    } else {
+        n = -1;
+    }
+    return n;
+} //узнать из строки номер регистра
+
+union dbl_long {
+    long long l;
+    double d;
+};
+
+
+string norm_string(const string* line) {
+    string copy = *line;
+    int n = copy.size();
+    int i = 0;
+    while (i < n) {
+        if (copy[i] == ',') {
+            copy = copy.substr(0, i) + ' ' + copy.substr(i + 1 , n);
+        } else if (copy[i] == ':' && i != n - 1) {
+            copy = copy.substr(i + 1, n);
+            i = 0;
+            n = copy.size();
+        } else if (copy[i] == ';') {
+            copy = copy.substr(0, i);
+            break;
+        }
+        i++;
+    }
+    return copy;
+}
+
+vector<string> string_to_vector(const string *line) {
+    stringstream x;
+    vector<string> res;
+    string word;
+    x << *line;
+    while (x >> word) {
+        res.push_back(word);
+    }
+    return res;
+}
+
+int from_mem(long long pointer) {
+    int k = 0;
+    if (pointer + 4 >= 1024 * 2048) {
+        return k;
+    }
+    for (int i = 0; i < 3; i++) {
+        k += 0xff&mem[pointer+i];
+        k <<= 8;
+    }
+    k += 0xff&mem[pointer+3];
+    return k;
+}
+
+int main() {
+    commands_init();
+    type_fill();
+    codes_fill();
+    set<string> d; //множество директив
+    vector<string> w;
+    int pc = 0;
+
+    ifstream in;
+    in.open("input.fasm");
+    string a;
+
+    in >> a; //считывание первого слова
+
+    while (a != "end") {
+        if (a[a.size() - 1] == ':') {
+            a = a.substr(0, a.size() - 1);
+            labels[a] = pc;
+            d.insert(a);
+        } else if (a == "word") {
+            pc += 4;
+        } else if (a == "dword" || a == "double") {
+            pc += 8;
+        } else if (a == "bytes") {
+            int n;
+            in >> n;
+            pc += n;
+        } else if (comands.count(a) > 0) {
+            pc += 4;
+        }
+        in >> a;
+    }
+    in >> a;
+    regs[29] = 2097144;
+    regs[31] = labels[a] + 4;
+    in.close();
+
+    in.open("input.fasm");
+    pc = 0; //второй проход
+    getline(in, a);
+    a = norm_string(&a);
+    w = string_to_vector(&a);
+    while (w.size() == 0) {
+        getline(in, a);
+        a = norm_string(&a);
+        w = string_to_vector(&a);
+    }
+    while (w[0] != "end") {
+        if (w[0] == "word") {
+            int n = stoi(w[1]);
+            vector<char> r = int_for_mem(n);
+            for (int i = 0; i < 4; ++i) {
+                mem[pc + i] = r[i];
+            }
+            pc += 4;
+        } else if (a == "dword") {
+            long n = stoi(w[1]);
+            vector<char> r = long_for_mem(n);
+            for (int i = 0; i < 8; ++i) {
+                mem[pc + i] = r[i];
+            }
+            pc += 8;
+        } else if (a == "double") {
+            dbl_long n;
+            n.d = stod(w[1]);
+            vector<char> r = long_for_mem(n.l);
+            for (int i = 0; i < 8; ++i) {
+                mem[pc + i] = r[i];
+            }
+            pc += 8;
+        } else if (a == "bytes") {
+            int n = stoi(w[1]);
+            n += (n % 4); //выравниваем данные на границу кратную 4
+            for (int i = 0; i < n; ++i) {
+                mem[pc + i] = 0;
+            }
+            pair<int, int> p;
+            p.first = pc;
+            p.second = n;
+            pc += n;
+        } else if (comands.find(w[0]) != comands.end()) {
+            int code_n = codes[w[0]];
+            if (types[code_n] == "RR") {
+                int rs = num_of_reg(w[2]);
+                int rd = num_of_reg(w[1]);
+                if (rs == 27) {
+                    int imm = stoi(w[3]);
+                    mem[pc + 3] = char(imm % (1 << 8));
+                    mem[pc + 2] = char(imm >> 8);
+                } else if (rs == 31  && d.find(w[3]) != d.end()) {
+                    rs = 27;
+                    int imm = labels[w[3]] + 4;
+                    mem[pc + 3] = char(imm % (1 << 8));
+                    mem[pc + 2] = char(imm >> 8);
+                } else {
+                    int imm, bits, ri;
+                    if (num_of_reg(w[3]) != -1) {
+                        imm = stoi(w[5]);
+                        bits = stoi(w[4]);
+                        ri = num_of_reg(w[3]);
+                        mem[pc + 2] = char(bits + (ri << 3));
+                        mem[pc + 3] = char(imm);
+                    } else {
+                        imm = labels[w[3]];
+                        mem[pc + 3] = char(imm % (1 << 8));
+                        mem[pc + 2] = char(imm >> 8);
+                    }
+                }
+                mem[pc] = char((code_n << 2) + (rd >> 3));
+                mem[pc + 1] = char(((rd % 8) << 5) + rs);
+            } else if (types[code_n] == "B") {
+                int ra, imm;
+                if (d.find(w[1]) == d.end()) {
+                    ra = num_of_reg(w[1]);
+                    if (ra == 31 || ra == 27) {
+                        if (w[2][0] <= '9' && w[2][0] >= '0') {
+                            imm = stoi(w[2]);
+                        } else {
+                            imm = labels[w[2]];
+                        }
+                        if (ra == 31) imm = pc + imm;
+                        mem[pc] = char((code_n << 2) + (ra >> 3));
+                        mem[pc + 1] = char(((ra % 8) << 5));
+                        mem[pc + 2] = char((imm % (1 << 16)) >> 8);
+                        mem[pc + 3] = char(imm % (1 << 8));
+                    } else {
+                        int ri = num_of_reg(w[2]);
+                        int bits = stoi(w[3].substr(0, w[3].size() - 1));
+                        if (w[4][0] <= '9' && w[4][0] >= '0') {
+                            imm = stoi(w[4]);
+                        } else {
+                            imm = labels[w[4]];
+                        }
+                        mem[pc] = char((code_n << 2) + (ra >> 3));
+                        mem[pc + 1] = char(((ra % 8) << 5) + ri);
+                        mem[pc + 2] = char((imm >> 8) + (bits << 13));
+                        mem[pc + 3] = char(imm % (1 << 8));
+                    }
+                } else {
+                    ra = 31;
+                    imm = labels[w[1]];
+                    mem[pc] = char((code_n << 2) + (ra >> 3));
+                    mem[pc + 1] = char(((ra % 8) << 5) + (imm >> 16));
+                    mem[pc + 2] = char((imm % (1 << 16)) >> 8);
+                    mem[pc + 3] = char(imm % (1 << 8));
+                }
+            } else if (types[code_n] == "RM") {
+                int rd, ra;
+                rd = num_of_reg(w[1]);
+                ra = num_of_reg(w[2]);
+                mem[pc] = char((code_n << 2) + (rd >> 3));
+                mem[pc + 1] = char(((rd % 8) << 5) + ra);
+                if (ra == 31 || ra == 27 || ra == 29) {
+                    int imm = stoi(w[3]);
+                    mem[pc + 2] = char(imm >> 8);
+                    mem[pc + 3] = char(imm % (1 << 8));
+                } else {
+                    string ri_s;
+                    int ri = num_of_reg(w[3]);
+                    if (ri == 27) {
+                        int imm = stoi(w[4]);
+                        mem[pc + 2] = char((ri << 3) + (imm >> 8));
+                        mem[pc + 3] = char(imm % (1 << 8));
+                    } else {
+                        int imm, bits;
+                        imm = stoi(w[5]);
+                        bits = stoi(w[4]);
+                        mem[pc + 2] = char(bits + (ri << 3));
+                        mem[pc + 3] = char(imm);
+                    }
+                }
+            } else if (types[code_n] == "C") {
+                int rd = num_of_reg(w[1]);
+                int imm = labels[w[2]] + 4;
+                mem[pc] = char((code_n << 2) + (rd >> 3));
+                mem[pc + 1] = char((rd % 8) << 5);
+                mem[pc + 2] = char(imm >> 8);
+                mem[pc + 3] = char(imm % (1 << 8));
+            }
+            pc += 4;
+        }
+        getline(in, a);
+        a = norm_string(&a);
+        w = string_to_vector(&a);
+        while (w.size() == 0) {
+            getline(in, a);
+            a = norm_string(&a);
+            w = string_to_vector(&a);
+        }
+
+    }
+    in.close();
+    while (true) {
+        long long pc = regs[31];
+        code_e code = (code_e) (mem[pc - 4] >> 2);
+        string type = types[mem[pc - 4] >> 2];
+        if (type == "RR") {
+            int imm, ri = 27, bits = 0;
+            int rd = (((0xff &mem[pc - 4]) % 4) << 3) + ((0xff & mem[pc - 3]) >> 5);
+            int rs = (0xff & mem[pc - 3]) % (1 << 5);
+            if (rs == 27) {
+                imm = (mem[pc - 2] << 8) + mem[pc - 1];
+            } else {
+                imm = mem[pc - 1];
+                bits = (0xff & mem[pc - 2]) % (1 << 3);
+                ri = (0xff & mem[pc - 2]) >> 3;
+            }
+            switch(code) {
+                case HALT:
+                    return 0;
+                    break;
+                case SVC:
+                    if (imm == 0) {
+                        return 0;
+                    } else if (imm == 100) {
+                        cin >> regs[rd];
+                    } else if (imm == 101) {
+                        dbl_long n;
+                        cin >> n.d;
+                        regs[rd] = n.l;
+                    } else if (imm == 102) {
+                        cout << regs[rd];
+                    } else if (imm == 103) {
+                        dbl_long n;
+                        n.l = regs[rd];
+                        cout << n.d;
+                    } else if (imm == 104) {
+                        char c;
+                        cin >> c;
+                        regs[rd] = (int) c;
+                    } else if (imm == 105) {
+                        putchar((int) regs[rd]);
+                    }
+                    break;
+                case ADD:
+                    if (rs == 27) {
+                        regs[rd] = imm;
+                        if (rd == 31) regs[rd] -= 4;
+                    } else {
+                        regs[rd] = regs[rs] + (regs[ri] << bits) + imm;
+                    }
+                    break;
+                case SUB:
+                    if (rs == 27) {
+                        regs[rd] = -imm;
+                    } else {
+                        regs[rd] = regs[rs] - (regs[ri] << bits) - imm;
+                    }
+                    break;
+                case MUL:
+                    if (rs == 27) {
+                        regs[rd] = 0;
+                    } else {
+                        regs[rd] = regs[rs] * ((regs[ri] << bits) + imm);
+                    }
+                    break;
+                case DIV:
+                    regs[rd] = regs[rs] / ((regs[ri] << bits) + imm);
+                    break;
+                case MOD:
+                    regs[rd] = regs[rs] % ((regs[ri] << bits) + imm);
+                    break;
+                case AND:
+                    regs[rd] = regs[rs] & ((regs[ri] << bits) + imm);
+                    break;
+                case OR:
+                    regs[rd] = regs[rs] | ((regs[ri] << bits) + imm);
+                    break;
+                case XOR:
+                    regs[rd] = regs[rs] ^ ((regs[ri] << bits) + imm);
+                    break;
+                case NAND:
+                    regs[rd] = regs[rs] & ~((regs[ri] << bits) + imm);
+                    break;
+                case SHL:
+                    regs[rd] = regs[rs] << ((regs[ri] << bits) + imm);
+                    break;
+                case SHR:
+                    regs[rd] = regs[rs] >> ((regs[ri] << bits) + imm);
+                    break;
+                case ADDD:
+                    if (rs == 27) {
+                        regs[rd] = imm;
+                    } else {
+                        dbl_long n;
+                        n.l = regs[rs];
+                        dbl_long k;
+                        k.l = regs[ri];
+                        dbl_long res;
+                        res.d = (double) imm + n.d + k.d * pow(2, bits);
+                        regs[rd] = res.l;
+                    }
+                    break;
+                case SUBD:
+                    if (rs == 27) {
+                        regs[rd] = -imm;
+                    } else {
+                        dbl_long n;
+                        n.l = regs[rs];
+                        dbl_long k;
+                        k.l = regs[ri];
+                        dbl_long res;
+                        res.d = n.d - imm - k.d * pow(2, bits);
+                        regs[rd] = res.l;
+                    }
+                    break;
+                case MULD:
+                    if (rs == 27) {
+                        regs[rd] = 0;
+                    } else {
+                        dbl_long n;
+                        n.l = regs[rs];
+                        dbl_long k;
+                        k.l = regs[ri];
+                        dbl_long res;
+                        res.d = n.d * ((double) imm + k.d * pow(2, bits));
+                        regs[rd] = res.l;
+                    }
+                    break;
+                case DIVD:
+                    if (rs == 27) {
+                        regs[rd] = imm;
+                    } else {
+                        dbl_long n;
+                        n.l = regs[rs];
+                        dbl_long k;
+                        k.l = regs[ri];
+                        dbl_long res;
+                        res.d = n.d / ((double) imm + k.d * pow(2, bits));
+                        regs[rd] = res.l;
+                    }
+                    break;
+                case DTOI:
+                    if (rs == 27) {
+                        regs[rd] = imm;
+                    } else {
+                        dbl_long n;
+                        n.d = (double) regs[rs];
+                        dbl_long m;
+                        m.d = (double) imm;
+                        dbl_long res;
+                        res.d = m.d + n.d + (double) (regs[ri] << bits);
+                        regs[rd] = res.l;
+                    }
+                    break;
+                case ITOD:
+                    if (rs == 27) {
+                        regs[rd] = imm;
+                    } else {
+                        dbl_long u;
+                        u.d = (double) (imm + (regs[ri] << bits) + regs[rs]);
+                        regs[rd] = u.l;
+                    }
+                    break;
+                case CMP:
+                    if (regs[rd] > regs[rs] + imm + (regs[ri] << bits)) flag = 1;
+                    else if (regs[rd] == regs[rs] + imm + (regs[ri] << bits)) flag = 0;
+                    else flag = -1;
+                    break;
+                case CMPD:
+                    dbl_long u;
+                    dbl_long v;
+                    dbl_long i;
+                    u.l = regs[rd];
+                    v.l = regs[rs];
+                    i.l = regs[ri];
+                    if (u.d > v.d + i.d * pow(2, bits) + (double) imm) flag = 1;
+                    else if (u.d > v.d + i.d * pow(2, bits) + (double) imm) flag = 0;
+                    else flag = -1;
+                    break;
+                }
+                regs[31] += 4;
+            } else if (type == "RM") {
+                int rd = (((0xff&mem[pc - 4] % 4) << 3) + ((0xff&mem[pc - 3]) >> 5));
+                int ra = ((0xff & mem[pc - 3]) % (1 << 5));
+                if (ra == 27 || ra == 31) {
+                    long long imm = (0xff & mem[pc - 1]) + ((0xff & mem[pc  - 2]) << 8);
+                    switch (code) {
+                        long long i;
+                        case LD:
+                            if (ra == 31) i = pc - imm;
+                            else i = imm;
+                            for (int j = 0; j < 8; ++j) {
+                                regs[rd] = regs[rd] << 8;
+                                regs[rd] += (0xff & mem[i + 4 + j]);
+                            }
+                            break;
+                        case ST:
+                            if (ra == 31) i = pc - imm;
+                            else i = imm;
+
+                            for (int j = 0; j < 8; ++j) {
+                                mem[i + j] = char((regs[rd] >> (8 * (7 - j)) % (1 << 8)));
+                            }
+                            break;
+
+                    }
+                } else if (ra == 29) {
+                    int imm = (0xff & mem[pc - 1]) + ((0xff & mem[pc - 2]) << 8);
+                    switch (code) {
+                        long long i;
+                        long long x;
+                        case LD:
+                            i = regs[29];
+                            regs[rd] = 0;
+                            x = 0;
+                            for (int j = 0; j < imm; ++j) {
+                                x = x << 8;
+                                x += (0xff & mem[i + j]);
+                            }
+                            regs[rd] = x;
+                            regs[29] += imm;
+                            break;
+                        case ST:
+                            regs[29] -= imm;
+                            i = regs[29];
+                            for (int j = 0; j < 8; ++j) {
+                                x = (regs[rd] >> (8 * (7 - j)) % (1 << 8));
+                                mem[i + j] = char(x);
+                            }
+                            break;
+                    }
+                } else {
+                    int imm, bits;
+                    int ri = (0xff & mem[pc - 2]) >> 3;
+                    if (ri == 27) {
+                        imm = 0xff & mem[pc - 1] + (((0xff & mem[pc - 2]) % 8) << 8);
+                        bits = 0;
+                    }
+                    else {
+                        imm = mem[pc - 1];
+                        bits = (0xff & mem[pc - 2]) % (1 << 3);
+                    }
+                    switch (code) {
+                        long long i;
+                        long long x;
+                        case LD:
+                            x = 0;
+                            i = (regs[ri] << bits) + regs[ra] + imm;
+                            for (int j = 0; j < 8; ++j) {
+                                x = x << 8;
+                                x += (0xff & mem[i + j]);
+                            }
+                            regs[rd] = x;
+                            break;
+                        case ST:
+                            i = (regs[ri] << bits) + regs[ra] + imm;
+                            for (int j = 0; j < 8; ++j) {
+                                x = (regs[rd] >> (8 * (7 - j)) % (1 << 8));
+                                mem[i + j] = char(x);
+                            }
+                            break;
+                    }
+                }
+                regs[31] += 4;
+            } else if (type == "B") {
+                int rs = (((0xff & mem[pc - 4] % 4) << 3) + ((0xff & mem[pc - 3]) >> 5));
+                int imm, bits, ri;
+                if (rs == 27 || rs == 31) {
+                    int x = 0xff & mem[pc - 1];
+                    int y = ((0xff & mem[pc - 2]) << 8);
+                    int z = (0xff & mem[pc - 3] % 8);
+                    imm = (0xff & mem[pc - 1]) + ((0xff & mem[pc - 2]) << 8) + (((0xff & mem[pc - 3]) % 8) << 16);
+                    regs[30] = regs[31];
+                    regs[31] = imm + 4;
+                } else {
+                    ri = (0xff & mem[pc - 3]) >> 3;
+                    bits = (0xff & mem[pc - 2]) >> 5;
+                    imm = (0xff & mem[pc - 1]) + (((0xff & mem[pc - 2]) % (1 << 5)) >> 8);
+                    regs[30] = regs[31];
+                    regs[31] = regs[rs] + (regs[ri] << bits) + imm + 4;
+                }
+            } else if (type == "C") {
+                int imm = (0xff & mem[pc - 1]) + ((0xff & mem[pc - 2]) << 8);
+                int rd = (((0xff&mem[pc - 4] % 4) << 3) + ((0xff&mem[pc - 3]) >> 5));
+                switch(code) {
+                    case CNE:
+                        if (flag != 0) {
+                            regs[rd] = imm;
+                        } else {
+                            regs[31] += 4;
+                        }
+                        break;
+                    case CEQ:
+                        if (flag == 0) {
+                            regs[rd] = imm;
+                        } else {
+                            regs[31] += 4;
+                        }
+                        break;
+                    case CLE:
+                        if (flag <= 0) {
+                            regs[rd] = imm;
+                        } else {
+                            regs[31] += 4;
+                        }
+                        break;
+                    case CLT:
+                        if (flag < 0) {
+                            regs[rd] = imm;
+                        } else {
+                            regs[31] += 4;
+                        }
+                        break;
+                    case CGE:
+                        if (flag >= 0) {
+                            regs[rd] = imm;
+                        } else {
+                            regs[31] += 4;
+                        }
+                        break;
+                    case CGT:
+                        if (flag > 0) {
+                            regs[rd] = imm;
+                        } else {
+                            regs[31] += 4;
+                        }
+                        break;
+                }
+
+            }
+        } //исполнение
+
+}
